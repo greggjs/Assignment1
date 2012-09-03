@@ -3,6 +3,7 @@
 #include "cinder/gl/Texture.h"
 #include "cinder/CinderMath.h"
 #include "boost/date_time/posix_time/posix_time.hpp"
+#include "cinder/Rand.h"
 
 using namespace ci;
 using namespace ci::app;
@@ -13,6 +14,7 @@ class Assignment1App : public AppBasic {
 	void setup();
 	void mouseDown( MouseEvent event );	
 	void mouseMove(MouseEvent event);
+	void mouseWheel(MouseEvent event);
 	void update();
 	void draw();
 	void clearScreen();
@@ -45,23 +47,26 @@ private:
 		float transparency;
 	};
 	
+	int mist_speed_;
 	void draw_mist(uint8_t* pixels, mist_info m);
 	void create_mist();
 
 	deque<mist_info> mist_list_;
 
-	boost::posix_time::ptime app_start_time_;
-	boost::posix_time::ptime current_time_;
-	uint32_t milliseconds_;
+	Rand random_;
+
+	int update_count_;
 
 };
 
 void Assignment1App::setup()
 {
 	PI_ = 3.1415927;
+	update_count_ = 0;
 
-	app_start_time_ = boost::posix_time::microsec_clock::local_time();
-	milliseconds_ = 0;
+	random_.seed(419);
+
+	mist_speed_ = 1;
 
 	bg_Surface_ = new Surface(kTextureSize,kTextureSize,false);
 	clearScreen();
@@ -88,10 +93,10 @@ void Assignment1App::mouseMove(MouseEvent event){
 	mouse_X_ = event.getX();
 	mouse_Y_ = event.getY();
 
-	bg_color_r_ = mouse_X_ / ((float)kAppWidth);
-	bg_color_g_ = sqrt(pow(mouse_X_,2.0) * pow(mouse_Y_,2.0)) /
+	bg_color_r_ = 255 *  mouse_X_ / ((float)kAppWidth);
+	bg_color_g_ = 255 * sqrt(pow(mouse_X_,2.0) * pow(mouse_Y_,2.0)) /
 		(float) sqrt(pow(kAppHeight,2.0) * pow(kAppWidth,2.0));
-	bg_color_b_ = mouse_Y_ / ((float)kAppWidth);
+	bg_color_b_ = 255 * mouse_Y_ / ((float)kAppWidth);
 
 
 
@@ -99,6 +104,12 @@ void Assignment1App::mouseMove(MouseEvent event){
 
 void Assignment1App::mouseDown( MouseEvent event )
 {
+
+}
+
+void Assignment1App::mouseWheel(MouseEvent event){
+	if((mist_speed_ > -20 && mist_speed_ < 20))
+		mist_speed_ += event.getWheelIncrement(); 
 }
 
 void Assignment1App::create_mist(){
@@ -110,12 +121,12 @@ void Assignment1App::create_mist(){
 	m.width = 5;
 	m.height = 5;
 	m.transparency = 0;
-	m.r = 0;
-	m.g = 0;
-	m.b = 0;
+	m.r = bg_color_r_;
+	m.g = bg_color_g_;
+	m.b = bg_color_b_;
 
 	mist_list_.push_front(m);
-	if(mist_list_.size() > 10)
+	if(mist_list_.size() > 15)
 		mist_list_.pop_back();
 
 }
@@ -128,9 +139,9 @@ void Assignment1App::draw_mist(uint8_t* pixels, mist_info m){
 				continue;
 
 			int offset = 3* (x + y*kTextureSize);
-			pixels[offset] = m.r;
-			pixels[offset+1] = m.g;
-			pixels[offset+2] = m.b;
+			pixels[offset] = pixels[offset]*m.transparency + m.r*(1-m.transparency);
+			pixels[offset+1] = pixels[offset+1]*m.transparency + m.g*(1-m.transparency);
+			pixels[offset+2] = pixels[offset+2]*m.transparency + m.b*(1-m.transparency);
 
 		}
 	}
@@ -138,17 +149,12 @@ void Assignment1App::draw_mist(uint8_t* pixels, mist_info m){
 
 void Assignment1App::update()
 {
-	//don't want to overflow the time variable
-	if(milliseconds_ >= UINT32_MAX - 5000)
-		app_start_time_ = boost::posix_time::microsec_clock::local_time();
-	
-	//count time since application start
-	current_time_ = boost::posix_time::microsec_clock::local_time();
-	boost::posix_time::time_duration msdiff = current_time_ - app_start_time_;
-	uint32_t milliseconds_ = msdiff.total_milliseconds();
+	update_count_++;
 
-	if(milliseconds_ % 500 < 100) // give a little margin for error for the update rate
+	if(update_count_ % 5 == 0){ //assuming 60 hz update, create new mist every second
 		create_mist();
+		update_count_ = 0; //reset counter
+	}
 
 	*work_Surface_ = (*bg_Surface_).clone();
 
@@ -156,12 +162,16 @@ void Assignment1App::update()
 
 	for(int i = 0; i < mist_list_.size(); i++){
 		draw_mist(pixels,mist_list_[i]);
-		mist_list_[i].height += 5;
-		mist_list_[i].width += 5;
-		mist_list_[i].x += 10*cos(2*PI_*milliseconds_/6000.0);
-		mist_list_[i].y += 10*sin(2*PI_*milliseconds_/6000.0);
-		mist_list_[i].transparency += 5;
+		if(mist_list_[i].height < 100 && mist_list_[i].width < 100){
+			mist_list_[i].height += random_.nextInt(2);//get int from 0-1
+			mist_list_[i].width += random_.nextInt(2);
+		}
+		mist_list_[i].x += mist_speed_*cos(2*PI_*update_count_/20.0 + random_.nextFloat());
+		mist_list_[i].y += mist_speed_*sin(2*PI_*update_count_/20.0 + random_.nextFloat());
+		if(mist_list_[i].transparency < 1)
+			mist_list_[i].transparency += 0.005;
 	}
+
 
 }
 
