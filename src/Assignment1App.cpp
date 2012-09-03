@@ -15,6 +15,7 @@ class Assignment1App : public AppBasic {
 	void mouseDown( MouseEvent event );	
 	void mouseMove(MouseEvent event);
 	void mouseWheel(MouseEvent event);
+	void draw_circle(int x, int y, int r);
 	void update();
 	void draw();
 	void clearScreen();
@@ -46,12 +47,19 @@ private:
 		float b;
 		float transparency;
 	};
+
+	struct circle_info{
+		int x;
+		int y;
+		int radius;
+	};
 	
 	int mist_speed_;
 	void draw_mist(uint8_t* pixels, mist_info m);
 	void create_mist();
 
 	deque<mist_info> mist_list_;
+	deque<circle_info> circle_list_;
 
 	Rand random_;
 
@@ -102,14 +110,21 @@ void Assignment1App::mouseMove(MouseEvent event){
 
 }
 
-void Assignment1App::mouseDown( MouseEvent event )
-{
-
+void Assignment1App::mouseDown( MouseEvent event ){
+	
+	//create a circle:
+	circle_info c;
+	c.x = event.getX();
+	c.y = event.getY();
+	c.radius = 10;
+	circle_list_.push_front(c);
 }
 
 void Assignment1App::mouseWheel(MouseEvent event){
-	if((mist_speed_ > -20 && mist_speed_ < 20))
-		mist_speed_ += event.getWheelIncrement(); 
+	int change = event.getWheelIncrement();
+	
+	if((mist_speed_ > -20 && change < 0) || (mist_speed_ < 20 && change > 0))
+		mist_speed_ += change; 
 }
 
 void Assignment1App::create_mist(){
@@ -163,8 +178,8 @@ void Assignment1App::update()
 	for(int i = 0; i < mist_list_.size(); i++){
 		draw_mist(pixels,mist_list_[i]);
 		if(mist_list_[i].height < 100 && mist_list_[i].width < 100){
-			mist_list_[i].height += random_.nextInt(2);//get int from 0-1
-			mist_list_[i].width += random_.nextInt(2);
+			mist_list_[i].height += random_.nextInt(5);//get int from 0-1
+			mist_list_[i].width += random_.nextInt(5);
 		}
 		mist_list_[i].x += mist_speed_*cos(2*PI_*update_count_/20.0 + random_.nextFloat());
 		mist_list_[i].y += mist_speed_*sin(2*PI_*update_count_/20.0 + random_.nextFloat());
@@ -173,6 +188,42 @@ void Assignment1App::update()
 	}
 
 
+	for(int i = 0; i < circle_list_.size(); i++){
+		if(circle_list_[0].radius <= 0)
+			circle_list_.pop_back();
+
+		draw_circle(circle_list_[i].x, circle_list_[i].y, circle_list_[i].radius);
+		circle_list_[i].radius += 10;
+	}
+	
+
+}
+
+void Assignment1App::draw_circle(int center_x, int center_y, int r){
+	
+	uint8_t* pixels = (*work_Surface_).getData();
+
+	//Bounds test
+	if(r >= kAppWidth/2 || r >= kAppHeight/2) return;
+
+	for(int y=center_y-r; y<=center_y+r; y++){
+		for(int x=center_x-r; x<=center_x+r; x++){
+			//Bounds test, to make sure we don't access array out of bounds
+			if(y < 0 || x < 0 || x >= kAppWidth || y >= kAppHeight) 
+				continue;
+
+			int dist = (int)sqrt((double)((x-center_x)*(x-center_x) + (y-center_y)*(y-center_y)));
+			if(dist <= r){
+					int offset = 3*(x + y*kTextureSize);
+					//By blending the colors I get a semi-transparent effect
+					pixels[offset] = pixels[offset]*sin(2*PI_*(float)dist/r);
+					pixels[offset+1] = pixels[offset+1]*sin(2*PI_*(float)dist/r);
+					pixels[offset+2] = pixels[offset+2]*sin(2*PI_*(float)dist/r);
+				//check too see if i can attenuate negative side
+				//or just say 0 - pi
+			}
+		}
+	}
 }
 
 void Assignment1App::draw()
