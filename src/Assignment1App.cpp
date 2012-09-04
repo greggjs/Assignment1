@@ -15,6 +15,7 @@ class Assignment1App : public AppBasic {
 	void mouseDown( MouseEvent event );	
 	void mouseMove(MouseEvent event);
 	void mouseWheel(MouseEvent event);
+	void keyDown(KeyEvent event);
 	void draw_circle(int x, int y, int r);
 	void update();
 	void draw();
@@ -55,6 +56,8 @@ private:
 	};
 	
 	int mist_speed_;
+	float rotation_rate_;
+	bool mist_on_;
 	void draw_mist(uint8_t* pixels, mist_info m);
 	void create_mist();
 
@@ -75,6 +78,8 @@ void Assignment1App::setup()
 	random_.seed(419);
 
 	mist_speed_ = 1;
+	mist_on_ = true;
+	rotation_rate_ = 200.0;
 
 	bg_Surface_ = new Surface(kTextureSize,kTextureSize,false);
 	clearScreen();
@@ -118,6 +123,25 @@ void Assignment1App::mouseDown( MouseEvent event ){
 	c.y = event.getY();
 	c.radius = 10;
 	circle_list_.push_front(c);
+}
+
+void Assignment1App::keyDown(KeyEvent event){
+
+	switch(event.getChar()){
+		case 'm':
+			mist_on_ = !mist_on_;
+			break;
+		case '[':
+			if(rotation_rate_ > 55.0)
+				rotation_rate_ -= 5.0;
+			break;
+		case ']':
+			if(rotation_rate_ < 495.0)
+				rotation_rate_ += 5.0;
+			break;
+		default:
+			break;
+	}
 }
 
 void Assignment1App::mouseWheel(MouseEvent event){
@@ -168,25 +192,29 @@ void Assignment1App::update()
 
 	if(update_count_ % 5 == 0){ //assuming 60 hz update, create new mist every second
 		create_mist();
-		update_count_ = 0; //reset counter
+		if(update_count_ > 10000000) //don't want to overflow INT
+			update_count_ = 0; //reset counter
 	}
 
 	*work_Surface_ = (*bg_Surface_).clone();
 
 	uint8_t* pixels = (*work_Surface_).getData();
 
-	for(int i = 0; i < mist_list_.size(); i++){
-		draw_mist(pixels,mist_list_[i]);
-		if(mist_list_[i].height < 100 && mist_list_[i].width < 100){
-			mist_list_[i].height += random_.nextInt(5);//get int from 0-1
-			mist_list_[i].width += random_.nextInt(5);
+	if(!mist_on_)
+		mist_list_.clear();
+	else{
+		for(int i = 0; i < mist_list_.size(); i++){
+			draw_mist(pixels,mist_list_[i]);
+			if(mist_list_[i].height < 50 && mist_list_[i].width < 50){
+				mist_list_[i].height += random_.nextInt(5);//get int from 0-1
+				mist_list_[i].width += random_.nextInt(5);
+			}
+			mist_list_[i].x += 10*mist_speed_*cos(2*PI_*update_count_/rotation_rate_);
+			mist_list_[i].y += 10*mist_speed_*sin(2*PI_*update_count_/rotation_rate_);
+			if(mist_list_[i].transparency < 1)
+				mist_list_[i].transparency += 0.005;
 		}
-		mist_list_[i].x += mist_speed_*cos(2*PI_*update_count_/20.0 + random_.nextFloat());
-		mist_list_[i].y += mist_speed_*sin(2*PI_*update_count_/20.0 + random_.nextFloat());
-		if(mist_list_[i].transparency < 1)
-			mist_list_[i].transparency += 0.005;
 	}
-
 
 	for(int i = 0; i < circle_list_.size(); i++){
 		if(circle_list_[0].radius <= 0)
