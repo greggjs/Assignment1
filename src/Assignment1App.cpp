@@ -16,7 +16,7 @@ class Assignment1App : public AppBasic {
 	void mouseMove(MouseEvent event);
 	void mouseWheel(MouseEvent event);
 	void keyDown(KeyEvent event);
-	void draw_circle(int x, int y, int r);
+	void draw_circle(int x, int y, int r, float transparency);
 	void update();
 	void draw();
 	void clearScreen();
@@ -53,6 +53,7 @@ private:
 		int x;
 		int y;
 		int radius;
+		float transparency;
 	};
 	
 	int mist_speed_;
@@ -79,7 +80,7 @@ void Assignment1App::setup()
 
 	mist_speed_ = 1;
 	mist_on_ = true;
-	rotation_rate_ = 200.0;
+	rotation_rate_ = 50.0;
 
 	bg_Surface_ = new Surface(kTextureSize,kTextureSize,false);
 	clearScreen();
@@ -122,6 +123,7 @@ void Assignment1App::mouseDown( MouseEvent event ){
 	c.x = event.getX();
 	c.y = event.getY();
 	c.radius = 10;
+	c.transparency = 1; //NOTE: this is a little bit different than the transparency for mist
 	circle_list_.push_front(c);
 }
 
@@ -209,8 +211,8 @@ void Assignment1App::update()
 				mist_list_[i].height += random_.nextInt(5);//get int from 0-1
 				mist_list_[i].width += random_.nextInt(5);
 			}
-			mist_list_[i].x += 10*mist_speed_*cos(2*PI_*update_count_/rotation_rate_);
-			mist_list_[i].y += 10*mist_speed_*sin(2*PI_*update_count_/rotation_rate_);
+			mist_list_[i].x += mist_speed_*cos(2*PI_*update_count_/rotation_rate_);
+			mist_list_[i].y += mist_speed_*sin(2*PI_*update_count_/rotation_rate_);
 			if(mist_list_[i].transparency < 1)
 				mist_list_[i].transparency += 0.005;
 		}
@@ -220,19 +222,20 @@ void Assignment1App::update()
 		if(circle_list_[0].radius <= 0)
 			circle_list_.pop_back();
 
-		draw_circle(circle_list_[i].x, circle_list_[i].y, circle_list_[i].radius);
-		circle_list_[i].radius += 10;
+		draw_circle(circle_list_[i].x, circle_list_[i].y, circle_list_[i].radius, circle_list_[i].transparency);
+		circle_list_[i].radius += 1;
+		circle_list_[i].transparency -= 0.005;
 	}
 	
 
 }
 
-void Assignment1App::draw_circle(int center_x, int center_y, int r){
+void Assignment1App::draw_circle(int center_x, int center_y, int r, float transparency){
 	
 	uint8_t* pixels = (*work_Surface_).getData();
 
 	//Bounds test
-	if(r >= kAppWidth/2 || r >= kAppHeight/2) return;
+	if(r >= kAppWidth/4 || r >= kAppHeight/4) return;
 
 	for(int y=center_y-r; y<=center_y+r; y++){
 		for(int x=center_x-r; x<=center_x+r; x++){
@@ -241,12 +244,14 @@ void Assignment1App::draw_circle(int center_x, int center_y, int r){
 				continue;
 
 			int dist = (int)sqrt((double)((x-center_x)*(x-center_x) + (y-center_y)*(y-center_y)));
-			if(dist <= r){
+			float ratio = ((float)dist/r);
+
+			if(ratio > 0.5 && dist < r){
 					int offset = 3*(x + y*kTextureSize);
 					//By blending the colors I get a semi-transparent effect
-					pixels[offset] = pixels[offset]*sin(2*PI_*(float)dist/r);
-					pixels[offset+1] = pixels[offset+1]*sin(2*PI_*(float)dist/r);
-					pixels[offset+2] = pixels[offset+2]*sin(2*PI_*(float)dist/r);
+					pixels[offset] = pixels[offset]*sin(2*PI_*ratio)/transparency;
+					pixels[offset+1] = pixels[offset+1]*sin(2*PI_*ratio)/transparency;
+					pixels[offset+2] = pixels[offset+2]*sin(2*PI_*ratio)/transparency;
 				//check too see if i can attenuate negative side
 				//or just say 0 - pi
 			}
