@@ -12,7 +12,7 @@
 * give attribution. Commercial uses are allowed.
 *
 * @note This project satisfies goals A.1 (rectangle), A.2 (circle), B.1 (blur), A.6 (tint), E.2 (transparency),
-* E.5 (animation) and E.6 (mouse interaction), E.3 (rotation)
+* E.5 (animation) and E.6 (mouse interaction), E.3 (rotation), A.4 (gradient)
 */
 
 #include "cinder/app/AppBasic.h"
@@ -31,14 +31,52 @@ public:
 	void setup();
 	void mouseDown( MouseEvent event );	
 	void mouseMove(MouseEvent event);
+
+	/**
+	* This method varies the speed at which the 'mist' particles 
+	* move away from the cursor. 
+	*
+	* This satisfies the interactivity requirement (E.6)
+	*/
 	void mouseWheel(MouseEvent event);
+
+	/**
+	* This method helps toggle booleans that dictate which
+	* methods are drawn on the screen (like tint, rectangle, rotation, blur)
+	*/
 	void keyDown(KeyEvent event);
 	void update();
 	void draw();
 
 private:
+	/**
+	* Draw a circle on the screen based on sinusoidal waves that 
+	* make it look like a ripple in a pond, extending outward
+	* until the radius is equal to one fourth of the screen width or height.
+	*
+	* This satisfies the "circle" requirement (A.2), and "mouse interaction" (E.6)
+	*/
 	void draw_circle(int x, int y, int r, float transparency);
+
+	/**
+	* This method writes every pixel on the image to white, except for when
+	* the green tint flag is toggled, in which case it writes every pixel as green.
+	*
+	*/
 	void clearScreen();
+
+	/**
+	* Blur one image, using another as a template.
+	*
+	* Blur the image_to_blur using a standard convolution blur, but the strength of the blur depends on the blur_pattern.
+	* Pixels are fulling blurred if they are black not blurred at all if they are white. Both images must be exactly the
+	* same size as the app window.
+	*
+	* This method is a modified version of  Dr. Bo Brinkman's blur method. This instance only
+	* blurs a specific rectangular area defined by x, y, width, height
+	*
+	* This satisfies the "blur" requirement, goal B.1
+	*/
 	void blur_area_edges(int x, int y , int width, int height);
 
 	static const int kAppWidth = 800;
@@ -75,16 +113,22 @@ private:
 	};
 
 	int mist_speed_;
-	float rotation_rate_;
 	bool mist_on_;
+	float rotation_rate_;
 	bool tint_green_on_;
 	bool blur_on_;
-	void draw_mist(uint8_t* pixels, mist_info m);
 	void create_mist();
 	int update_count_;
 	Rand random_;
 	uint8_t* my_blur_pattern_;
 
+	/**
+	* This method draws 'mist' particles which are multicolored rectangles with
+	* transparency parameters.
+	*
+	* This satisfies the rectangle requirement (A.1), and transparency (E.2)
+	*/
+	void draw_mist(uint8_t* pixels, mist_info m);
 	deque<mist_info> mist_list_;
 	deque<circle_info> circle_list_;
 
@@ -95,18 +139,19 @@ void Assignment1App::setup()
 	PI_ = 3.1415927;
 	update_count_ = 0;
 
-	random_.seed(419);
+	random_.seed(419); //random number generator
 
 	mist_speed_ = 1;
 	mist_on_ = true;
-	rotation_rate_ = 50.0;
+	rotation_rate_ = 50.0; //controls period on mist rotation around mouse
 
 	tint_green_on_ = false;
 
 	bg_Surface_ = new Surface(kTextureSize,kTextureSize,false);
-	clearScreen();
+	clearScreen(); //fill screen with white pixels
 	work_Surface_ = new Surface(kTextureSize,kTextureSize,false);
 
+	//get data for blurring method:
 	blur_on_ = false;
 	uint8_t* blur_data = (*bg_Surface_).getData();	
 	my_blur_pattern_ = new uint8_t[kAppWidth*kAppHeight*3];
@@ -126,7 +171,7 @@ void Assignment1App::clearScreen(){
 	for(int y = 0; y < kAppHeight; y++){
 		for(int x = 0; x < kAppWidth; x++){
 			int offset = 3* (x + y*kTextureSize);
-			if(tint_green_on_){
+			if(tint_green_on_){ //TINT!
 				pixels[offset] = 0;
 				pixels[offset+1] = 255;
 				pixels[offset+2] = 0;
@@ -145,6 +190,9 @@ void Assignment1App::mouseMove(MouseEvent event){
 	mouse_X_ = event.getX();
 	mouse_Y_ = event.getY();
 
+	//Here we get "background color" which is a color dependant 
+	//on the position of the mouse on the background.
+	//This fufills the gradient requirement (A.4)
 	bg_color_r_ = 255 * mouse_X_ / ((float)kAppWidth);
 	bg_color_g_ = 255 * sqrt(pow(mouse_X_,2.0) * pow(mouse_Y_,2.0)) /
 		(float) sqrt(pow(kAppHeight,2.0) * pow(kAppWidth,2.0));
@@ -369,6 +417,8 @@ void Assignment1App::update()
 	*work_Surface_ = (*bg_Surface_).clone();
 
 	uint8_t* pixels = (*work_Surface_).getData();
+
+	//ANIMATION SECTION FOR CIRCLES AND RECTANGLES: 
 
 	if(!mist_on_)
 		mist_list_.clear();
