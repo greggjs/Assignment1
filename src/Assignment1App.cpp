@@ -1,3 +1,20 @@
+/**
+* @file	Assignment1App.cpp
+* CSE 274 - Fall 2012
+* My solution for HW01.
+*
+* @author RJ Marcus
+* @date 2012-08-27
+*
+* @note This file is (c) 2012. It is licensed under the
+* CC BY 3.0 license (http://creativecommons.org/licenses/by/3.0/),
+* which means you are free to use, share, and remix it as long as you
+* give attribution. Commercial uses are allowed.
+*
+* @note This project satisfies goals A.1 (rectangle), A.2 (circle), B.1 (blur), A.6 (tint), E.2 (transparency),
+* E.5 (animation) and E.6 (mouse interaction), E.3 (rotation)
+*/
+
 #include "cinder/app/AppBasic.h"
 #include "cinder/gl/gl.h"
 #include "cinder/gl/Texture.h"
@@ -10,24 +27,25 @@ using namespace ci::app;
 using namespace std;
 
 class Assignment1App : public AppBasic {
-  public:
+public:
 	void setup();
 	void mouseDown( MouseEvent event );	
 	void mouseMove(MouseEvent event);
 	void mouseWheel(MouseEvent event);
 	void keyDown(KeyEvent event);
-	void draw_circle(int x, int y, int r, float transparency);
 	void update();
 	void draw();
-	void clearScreen();
 
-private: 
+private:
+	void draw_circle(int x, int y, int r, float transparency);
+	void clearScreen();
+	void blur_area_edges(int x, int y , int width, int height);
+
 	static const int kAppWidth = 800;
 	static const int kAppHeight = 800;
 	static const int kTextureSize = 1024;
-	
-	double PI_; // won't let me initialize even if it's a static const
 
+	double PI_; // won't let me initialize even if it's a static const
 
 	int mouse_X_;
 	int mouse_Y_;
@@ -55,19 +73,20 @@ private:
 		int radius;
 		float transparency;
 	};
-	
+
 	int mist_speed_;
 	float rotation_rate_;
 	bool mist_on_;
+	bool tint_green_on_;
+	bool blur_on_;
 	void draw_mist(uint8_t* pixels, mist_info m);
 	void create_mist();
+	int update_count_;
+	Rand random_;
+	uint8_t* my_blur_pattern_;
 
 	deque<mist_info> mist_list_;
 	deque<circle_info> circle_list_;
-
-	Rand random_;
-
-	int update_count_;
 
 };
 
@@ -82,22 +101,41 @@ void Assignment1App::setup()
 	mist_on_ = true;
 	rotation_rate_ = 50.0;
 
+	tint_green_on_ = false;
+
 	bg_Surface_ = new Surface(kTextureSize,kTextureSize,false);
 	clearScreen();
 	work_Surface_ = new Surface(kTextureSize,kTextureSize,false);
-	
+
+	blur_on_ = false;
+	uint8_t* blur_data = (*bg_Surface_).getData();	
+	my_blur_pattern_ = new uint8_t[kAppWidth*kAppHeight*3];
+	for(int y=0;y<kAppHeight;y++){
+		for(int x=0;x<kAppWidth;x++){
+			int offset = 3*(x + y*kAppWidth);
+			my_blur_pattern_[offset] = blur_data[offset];
+		}
+	}
+
 }
 
 void Assignment1App::clearScreen(){
-	
+
 	uint8_t* pixels = (*bg_Surface_).getData();
 
 	for(int y = 0; y < kAppHeight; y++){
 		for(int x = 0; x < kAppWidth; x++){
 			int offset = 3* (x + y*kTextureSize);
-			pixels[offset] = 255;
-			pixels[offset+1] = 255;
-			pixels[offset+2] = 255;
+			if(tint_green_on_){
+				pixels[offset] = 0;
+				pixels[offset+1] = 255;
+				pixels[offset+2] = 0;
+			}
+			else{
+				pixels[offset] = 255;
+				pixels[offset+1] = 255;
+				pixels[offset+2] = 255;
+			}
 		}
 	}
 }
@@ -107,17 +145,15 @@ void Assignment1App::mouseMove(MouseEvent event){
 	mouse_X_ = event.getX();
 	mouse_Y_ = event.getY();
 
-	bg_color_r_ = 255 *  mouse_X_ / ((float)kAppWidth);
+	bg_color_r_ = 255 * mouse_X_ / ((float)kAppWidth);
 	bg_color_g_ = 255 * sqrt(pow(mouse_X_,2.0) * pow(mouse_Y_,2.0)) /
 		(float) sqrt(pow(kAppHeight,2.0) * pow(kAppWidth,2.0));
 	bg_color_b_ = 255 * mouse_Y_ / ((float)kAppWidth);
 
-
-
 }
 
 void Assignment1App::mouseDown( MouseEvent event ){
-	
+
 	//create a circle:
 	circle_info c;
 	c.x = event.getX();
@@ -130,31 +166,38 @@ void Assignment1App::mouseDown( MouseEvent event ){
 void Assignment1App::keyDown(KeyEvent event){
 
 	switch(event.getChar()){
-		case 'm':
-			mist_on_ = !mist_on_;
-			break;
-		case '[':
-			if(rotation_rate_ > 55.0)
-				rotation_rate_ -= 5.0;
-			break;
-		case ']':
-			if(rotation_rate_ < 495.0)
-				rotation_rate_ += 5.0;
-			break;
-		default:
-			break;
+	case 'm':
+		mist_on_ = !mist_on_;
+		break;
+	case '[':
+		if(rotation_rate_ > 55.0)
+			rotation_rate_ -= 5.0;
+		break;
+	case ']':
+		if(rotation_rate_ < 495.0)
+			rotation_rate_ += 5.0;
+		break;
+	case 'g':
+		tint_green_on_ = !tint_green_on_;
+		clearScreen();
+		break;
+	case 'b':
+		blur_on_ = !blur_on_;
+		break;
+	default:
+		break;
 	}
 }
 
 void Assignment1App::mouseWheel(MouseEvent event){
 	int change = event.getWheelIncrement();
-	
+
 	if((mist_speed_ > -20 && change < 0) || (mist_speed_ < 20 && change > 0))
-		mist_speed_ += change; 
+		mist_speed_ += change;
 }
 
 void Assignment1App::create_mist(){
-	
+
 	//create a mist packet
 	mist_info m;
 	m.x = mouse_X_;
@@ -165,6 +208,11 @@ void Assignment1App::create_mist(){
 	m.r = bg_color_r_;
 	m.g = bg_color_g_;
 	m.b = bg_color_b_;
+
+	if(tint_green_on_){
+		m.r /= 4;
+		m.b /= 4;
+	}
 
 	mist_list_.push_front(m);
 	if(mist_list_.size() > 15)
@@ -183,9 +231,129 @@ void Assignment1App::draw_mist(uint8_t* pixels, mist_info m){
 			pixels[offset] = pixels[offset]*m.transparency + m.r*(1-m.transparency);
 			pixels[offset+1] = pixels[offset+1]*m.transparency + m.g*(1-m.transparency);
 			pixels[offset+2] = pixels[offset+2]*m.transparency + m.b*(1-m.transparency);
+	
 
 		}
 	}
+
+	if(blur_on_){
+		blur_area_edges(m.x, m.y, m.width, m.height);
+	}
+
+}
+
+void Assignment1App::draw_circle(int center_x, int center_y, int r, float transparency){
+
+	uint8_t* pixels = (*work_Surface_).getData();
+
+	//Bounds test
+	if(r >= kAppWidth/4 || r >= kAppHeight/4) return;
+
+	for(int y=center_y-r; y<=center_y+r; y++){
+		for(int x=center_x-r; x<=center_x+r; x++){
+			//Bounds test, to make sure we don't access array out of bounds
+			if(y < 0 || x < 0 || x >= kAppWidth || y >= kAppHeight)
+				continue;
+
+			int dist = (int)sqrt((double)((x-center_x)*(x-center_x) + (y-center_y)*(y-center_y)));
+			float ratio = ((float)dist/r);
+
+			if(ratio > 0.5 && dist < r){
+				int offset = 3*(x + y*kTextureSize);
+				//By blending the colors I get a semi-transparent effect
+				pixels[offset] = pixels[offset]*sin(2*PI_*ratio)/transparency;
+				pixels[offset+1] = pixels[offset+1]*sin(2*PI_*ratio)/transparency;
+				pixels[offset+2] = pixels[offset+2]*sin(2*PI_*ratio)/transparency;
+				//check too see if i can attenuate negative side
+				//or just say 0 - pi
+			}
+		}
+	}
+}
+
+void Assignment1App::blur_area_edges(int origin_x, int origin_y, int width, int height){
+	uint8_t* pixels = (*work_Surface_).getData();
+	
+	//Convolution filters tend to overwrite the data that you need, so
+	// we keep a temporary copy of the image_to_blur. There are certainly
+	// more efficient ways to deal with this problem, but this is simple to
+	// understand.
+	static uint8_t work_buffer[3*kTextureSize*kTextureSize];
+	//This memcpy is not much of a performance hit.
+	memcpy(work_buffer,pixels,3*kTextureSize*kTextureSize);
+
+	uint8_t kernelA[9] =
+		{4,3,4,
+		4,3,4,
+		4,3,4};
+	uint8_t kernelB[9] =
+		{4,3,4,
+		4,2,4,
+		4,3,4};
+
+	uint8_t total_red =0;
+	uint8_t total_green = 0;
+	uint8_t total_blue =0;
+	int offset;	
+	int k, ky,kx;
+
+	//Visit every pixel in the image, except the ones on the edge.
+	//TODO Special purpose logic to handle the edge cases
+	for(int y = origin_y; y < origin_y + height-1; y++){
+		for(int x = origin_x; x < origin_x + width-1; x++){
+
+			//check bounds so we don't access pixels outside of image array:
+			if(x >= kAppWidth || y >= kAppHeight 
+				|| x <= 0 || y <= 0){
+					continue;
+			} 
+
+			offset = 3*(x + y*kAppWidth);
+
+			if(my_blur_pattern_[offset] > 2*256/3){
+				//Compute the convolution of the kernel with the region around the current pixel
+				//I use ints for the totals and the kernel to avoid overflow
+				total_red=0;
+				total_green=0;
+				total_blue=0;
+				for( ky=-1;ky<=1;ky++){
+					for( kx=-1;kx<=1;kx++){
+						offset = 3*(x + kx + (y+ky)*kTextureSize);
+						k = kernelA[kx+1 + (ky+1)*3];
+						total_red += (work_buffer[offset ] >> k);
+						total_green += (work_buffer[offset+1] >> k);
+						total_blue += (work_buffer[offset+2] >> k);
+					}
+				}
+			} else if(my_blur_pattern_[offset] > 256/3){
+				//Compute the convolution of the kernel with the region around the current pixel
+				//I use ints for the totals and the kernel to avoid overflow
+				total_red=0;
+				total_green=0;
+				total_blue=0;
+				for( ky=-1;ky<=1;ky++){
+					for( kx=-1;kx<=1;kx++){
+						offset = 3*(x + kx + (y+ky)*kTextureSize);
+						k = kernelB[kx+1 + (ky+1)*3];
+						total_red += (work_buffer[offset ] >> k);
+						total_green += (work_buffer[offset+1] >> k);
+						total_blue += (work_buffer[offset+2] >> k);
+					}
+				}
+			} else {
+				offset = 3*(x + y*kTextureSize);
+				total_red = work_buffer[offset];
+				total_green = work_buffer[offset+1];
+				total_blue = work_buffer[offset+2];
+			}
+
+			offset = 3*(x + y*kTextureSize);
+			pixels[offset] = total_red;
+			pixels[offset+1] = total_green;
+			pixels[offset+2] = total_blue;
+		}
+	}
+
 }
 
 void Assignment1App::update()
@@ -226,37 +394,8 @@ void Assignment1App::update()
 		circle_list_[i].radius += 1;
 		circle_list_[i].transparency -= 0.005;
 	}
-	
 
-}
 
-void Assignment1App::draw_circle(int center_x, int center_y, int r, float transparency){
-	
-	uint8_t* pixels = (*work_Surface_).getData();
-
-	//Bounds test
-	if(r >= kAppWidth/4 || r >= kAppHeight/4) return;
-
-	for(int y=center_y-r; y<=center_y+r; y++){
-		for(int x=center_x-r; x<=center_x+r; x++){
-			//Bounds test, to make sure we don't access array out of bounds
-			if(y < 0 || x < 0 || x >= kAppWidth || y >= kAppHeight) 
-				continue;
-
-			int dist = (int)sqrt((double)((x-center_x)*(x-center_x) + (y-center_y)*(y-center_y)));
-			float ratio = ((float)dist/r);
-
-			if(ratio > 0.5 && dist < r){
-					int offset = 3*(x + y*kTextureSize);
-					//By blending the colors I get a semi-transparent effect
-					pixels[offset] = pixels[offset]*sin(2*PI_*ratio)/transparency;
-					pixels[offset+1] = pixels[offset+1]*sin(2*PI_*ratio)/transparency;
-					pixels[offset+2] = pixels[offset+2]*sin(2*PI_*ratio)/transparency;
-				//check too see if i can attenuate negative side
-				//or just say 0 - pi
-			}
-		}
-	}
 }
 
 void Assignment1App::draw()
@@ -265,3 +404,4 @@ void Assignment1App::draw()
 }
 
 CINDER_APP_BASIC( Assignment1App, RendererGl )
+
