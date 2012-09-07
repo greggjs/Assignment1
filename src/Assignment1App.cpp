@@ -257,13 +257,14 @@ void Assignment1App::create_mist(){
 	m.g = bg_color_g_;
 	m.b = bg_color_b_;
 
-	if(tint_green_on_){
+	if(tint_green_on_){ // tints green
 		m.r /= 4;
 		m.b /= 4;
 	}
 
+    // adds new mist to the list
 	mist_list_.push_front(m);
-	if(mist_list_.size() > 15)
+	if(mist_list_.size() > 15) // pops off the last
 		mist_list_.pop_back();
 
 }
@@ -275,6 +276,7 @@ void Assignment1App::draw_mist(uint8_t* pixels, mist_info m){
 			if(y < 0 || x < 0 || x >= kAppWidth || y >= kAppHeight)
 				continue;
 
+            // draws pixels with an alpha value taken into consideration
 			int offset = 3* (x + y*kTextureSize);
 			pixels[offset] = pixels[offset]*m.transparency + m.r*(1-m.transparency);
 			pixels[offset+1] = pixels[offset+1]*m.transparency + m.g*(1-m.transparency);
@@ -406,7 +408,7 @@ void Assignment1App::blur_area_edges(int origin_x, int origin_y, int width, int 
 
 void Assignment1App::update()
 {
-	update_count_++;
+	update_count_++; // increment update count for mist creation
 
 	if(update_count_ % 5 == 0){ //assuming 60 hz update, create new mist every second
 		create_mist();
@@ -422,7 +424,7 @@ void Assignment1App::update()
 
 	if(!mist_on_)
 		mist_list_.clear();
-	else{
+	else{ // draws rectangles
 		for(int i = 0; i < mist_list_.size(); i++){
 			draw_mist(pixels,mist_list_[i]);
 			if(mist_list_[i].height < 50 && mist_list_[i].width < 50){
@@ -436,6 +438,7 @@ void Assignment1App::update()
 		}
 	}
 
+    // draws circles
 	for(int i = 0; i < circle_list_.size(); i++){
 		if(circle_list_[0].radius <= 0)
 			circle_list_.pop_back();
@@ -450,7 +453,7 @@ void Assignment1App::update()
 
 void Assignment1App::draw()
 {
-	gl::draw(*work_Surface_);
+	gl::draw(*work_Surface_); // redraws surface
 }
 
 CINDER_APP_BASIC( Assignment1App, RendererGl )
